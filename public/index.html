@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LAKIYA MD MINI</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: #000;
+      color: #a020f0;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+    .overlay {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      z-index: 0;
+    }
+    .container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      top: 30%;
+    }
+    h1 {
+      font-size: 2em;
+      color: #d500f9;
+    }
+    p {
+      color: #bbb;
+    }
+    form {
+      margin-top: 20px;
+    }
+    input {
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      outline: none;
+      width: 250px;
+      font-size: 1em;
+      margin-bottom: 10px;
+    }
+    button {
+      background: #a020f0;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #d500f9;
+    }
+    #result {
+      margin-top: 15px;
+      font-size: 1.2em;
+      color: #fff;
+    }
+    .overlay::before {
+      content: "";
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      background: repeating-linear-gradient(
+        45deg,
+        rgba(160, 32, 240, 0.2) 0,
+        rgba(160, 32, 240, 0.2) 2px,
+        transparent 2px,
+        transparent 20px
+      );
+      animation: move 10s linear infinite;
+    }
+    @keyframes move {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(-50%, -50%); }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay"></div>
+  <div class="container">
+    <h1>LAKIYA MD MINI</h1>
+    <p>📲 Entrez votre numéro avec indicatif pays</p>
+    <form id="pairForm">
+      <input type="text" id="number" name="number" placeholder="9476xxxxxxxx" required>
+      <button type="submit">Soumettre</button>
+    </form>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    document.getElementById('pairForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const number = document.getElementById('number').value;
+      const response = await fetch('/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number })
+      });
+      const data = await response.json();
+      document.getElementById('result').innerHTML = data.code ? 
+        `<p>Code de pairage : <strong>${data.code}</strong></p>` : 
+        `<p style="color:red;">${data.error}</p>`;
+    });
+  </script>
+</body>
+</html>
