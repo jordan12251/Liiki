@@ -1,58 +1,61 @@
-const { Boom } = require('@hapi/boom');
-const makeWASocket = require('@whiskeysockets/baileys').default;
-const {
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-} = require('@whiskeysockets/baileys');
+// server.js
+import express from "express";
+import bodyParser from "body-parser";
+import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import fs from "fs";
 
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
 const app = express();
-const port = process.env.PORT || 3000;
+app.use(bodyParser.json());
+app.use(express.static("public")); // pour servir ton HTML/CSS
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
+app.post("/pair", async (req, res) => {
+  try {
+    const { number } = req.body;
+    if (!number) return res.json({ error: "Numéro requis" });
 
-app.post('/pair', async (req, res) => {
-  const { number } = req.body;
-  if (!number) return res.json({ error: "Numéro requis" });
+    const sessionDir = `./session/${number}`;
+    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-  const sessionDir = `./session/${number}`;
-  if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+    const { version } = await fetchLatestBaileysVersion();
 
-  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-  const { version } = await fetchLatestBaileysVersion();
+    const sock = makeWASocket({
+      version,
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, {}),
+      },
+      printQRInTerminal: false,
+      browser: ['Chrome', 'Desktop', '110.0.0.0'],
+    });
 
-  const sock = makeWASocket({
-    version,
-    auth: {
-      creds: state.creds,
-      keys: makeCacheableSignalKeyStore(state.keys, {}),
-    },
-    printQRInTerminal: false,
-    browser: ['Chrome', 'Desktop', '110.0.0.0'],
-  });
+    sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on('creds.update', saveCreds);
+    // Écoute de la mise à jour de connexion
+    const onUpdate = (update) => {
+      const { pairingCode, connection } = update;
+      if (pairingCode) {
+        res.json({ code: pairingCode });
+        sock.ev.off("connection.update", onUpdate);
+      } else if (connection === "close") {
+        res.json({ error: "Impossible de générer le code." });
+        sock.ev.off("connection.update", onUpdate);
+      }
+    };
 
-  sock.ev.once('connection.update', (update) => {
-    const { connection, lastDisconnect, pairingCode } = update;
+    sock.ev.on("connection.update", onUpdate);
 
-    if (pairingCode) {
-      console.log("Pairing code généré :", pairingCode);
-      res.json({ code: pairingCode });
-    } else if (connection === 'close') {
-      const reason = new Boom(lastDisconnect?.error).output.statusCode;
-      res.json({ error: `Déconnexion : ${reason}` });
-    }
-  });
+    // Demande le code
+    await sock.requestPairingCode(number);
 
-  await sock.requestPairingCode(number);
+  } catch (err) {
+    console.error(err);
+    res.json({ error: "Erreur serveur : " + err.message });
+  }
 });
 
-app.listen(port, () => {
-  console.log(`Serveur en ligne sur http://localhost:${port}`);
+// Render utilise une variable d’environnement pour le port
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Serveur en ligne sur http://localhost:${PORT}`);
 });
