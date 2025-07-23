@@ -1,17 +1,12 @@
 // server.js
 import express from "express";
 import bodyParser from "body-parser";
-import {
-  makeWASocket,
-  useMultiFileAuthState,
-  makeCacheableSignalKeyStore,
-  fetchLatestBaileysVersion
-} from "@whiskeysockets/baileys";
+import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
 import fs from "fs";
 
 const app = express();
 app.use(bodyParser.json());
-app.use(express.static("public")); // sert ton HTML/CSS
+app.use(express.static("public")); // pour servir ton HTML/CSS
 
 app.post("/pair", async (req, res) => {
   try {
@@ -36,13 +31,18 @@ app.post("/pair", async (req, res) => {
 
     sock.ev.on("creds.update", saveCreds);
 
-    // Événement connexion
+    let responded = false; // empêche d'envoyer plusieurs réponses
+
+    // Écoute de la mise à jour de connexion
     const onUpdate = (update) => {
+      if (responded) return; // on ignore si déjà répondu
       const { pairingCode, connection } = update;
       if (pairingCode) {
+        responded = true;
         res.json({ code: pairingCode });
-        sock.ev.off("connection.update", onUpdate); // on supprime le listener une fois utilisé
+        sock.ev.off("connection.update", onUpdate);
       } else if (connection === "close") {
+        responded = true;
         res.json({ error: "Impossible de générer le code." });
         sock.ev.off("connection.update", onUpdate);
       }
@@ -50,7 +50,7 @@ app.post("/pair", async (req, res) => {
 
     sock.ev.on("connection.update", onUpdate);
 
-    // Générer le code
+    // Demande le code
     await sock.requestPairingCode(number);
 
   } catch (err) {
@@ -59,7 +59,7 @@ app.post("/pair", async (req, res) => {
   }
 });
 
-// Port Render
+// Render utilise une variable d’environnement pour le port
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Serveur en ligne sur http://localhost:${PORT}`);
