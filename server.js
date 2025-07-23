@@ -31,31 +31,43 @@ app.post("/pair", async (req, res) => {
 
     sock.ev.on("creds.update", saveCreds);
 
-    let responded = false; // empêche d'envoyer plusieurs réponses
+    // Flag pour éviter double réponse
+    let responded = false;
 
-    // Écoute de la mise à jour de connexion
     const onUpdate = (update) => {
-      if (responded) return; // on ignore si déjà répondu
       const { pairingCode, connection } = update;
+
+      if (responded) return; // Évite plusieurs réponses
+
       if (pairingCode) {
         responded = true;
         res.json({ code: pairingCode });
         sock.ev.off("connection.update", onUpdate);
       } else if (connection === "close") {
         responded = true;
-        res.json({ error: "Impossible de générer le code." });
+        res.json({ error: "Ibpossible de générer le code." });
         sock.ev.off("connection.update", onUpdate);
       }
     };
 
     sock.ev.on("connection.update", onUpdate);
 
-    // Demande le code
     await sock.requestPairingCode(number);
+
+    // Timeout de sécurité si pas de réponse en 30s
+    setTimeout(() => {
+      if (!responded) {
+        responded = true;
+        res.json({ error: "Délai dépassé. Réessayez." });
+        sock.ev.off("connection.update", onUpdate);
+      }
+    }, 30000);
 
   } catch (err) {
     console.error(err);
-    res.json({ error: "Erreur serveur : " + err.message });
+    if (!res.headersSent) {
+      res.json({ error: "Erreur serveur : " + err.message });
+    }
   }
 });
 
