@@ -1,24 +1,21 @@
+// server.js
 import express from "express";
 import bodyParser from "body-parser";
-import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
-import fs from "fs";
 import path from "path";
+import fs from "fs";
+import { makeWASocket, useMultiFileAuthState, makeCacheableSignalKeyStore, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
 
 const app = express();
 app.use(bodyParser.json());
-app.use(express.static("public")); // Sert les fichiers HTML/CSS/JS
-
-// >>> Route pour afficher ton index.html <<<
-app.get("/", (req, res) => {
-  res.sendFile(path.join(process.cwd(), "public", "index.html"));
-});
+app.use(express.static("public")); // Sert le HTML/CSS dans public
 
 app.post("/pair", async (req, res) => {
   try {
     const { number } = req.body;
     if (!number) return res.json({ error: "Numéro requis" });
 
-    const sessionDir = `./session/${number}`;
+    // Utiliser le répertoire temporaire sur Vercel
+    const sessionDir = path.join("/tmp", "session", number);
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
@@ -40,7 +37,6 @@ app.post("/pair", async (req, res) => {
 
     const onUpdate = (update) => {
       const { pairingCode, connection } = update;
-
       if (responded) return;
 
       if (pairingCode) {
@@ -74,6 +70,7 @@ app.post("/pair", async (req, res) => {
   }
 });
 
+// Port fourni par Vercel
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Serveur en ligne sur http://localhost:${PORT}`);
